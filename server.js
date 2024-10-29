@@ -1,23 +1,42 @@
 const https = require('https');
 const fs = require('fs');
 const express = require('express');
+const cors = require('cors');
 const { Server } = require('socket.io');
 
 const app = express();
 
-// Opcje HTTPS, ustawione na ścieżki do kluczy i certyfikatów
-const httpsOptions = {
-  key: fs.readFileSync('/home/ec2-user/certs/privkey.pem'),
-  cert: fs.readFileSync('/home/ec2-user/certs/cert.pem')
+// Konfiguracja opcji CORS, aby zezwolić tylko na połączenia z https://www.spychala.art
+const corsOptions = {
+  origin: 'https://www.spychala.art', // Domena frontendu
+  methods: ['GET', 'POST'],
+  allowedHeaders: ['Content-Type'],
+  credentials: true
 };
 
-// Tworzenie serwera HTTPS z Express i ustawienie go do obsługi przez Socket.IO
+app.use(cors(corsOptions)); // Włączenie CORS dla aplikacji Express
+
+// Ustawienia certyfikatu SSL
+const httpsOptions = {
+  key: fs.readFileSync('/home/ec2-user/certs/privkey.pem'), // Ścieżka do klucza prywatnego
+  cert: fs.readFileSync('/home/ec2-user/certs/cert.pem') // Ścieżka do certyfikatu
+};
+
+// Tworzenie serwera HTTPS
 const server = https.createServer(httpsOptions, app);
-const io = new Server(server);
+
+// Konfiguracja Socket.IO z obsługą CORS
+const io = new Server(server, {
+  cors: {
+    origin: 'https://www.spychala.art', // Ustawienia CORS dla Socket.IO
+    methods: ['GET', 'POST'],
+    credentials: true
+  }
+});
 
 const PORT = 3000;
 
-// Endpoint do sprawdzenia działania serwera
+// Endpoint testowy
 app.get('/', (req, res) => {
     res.send('Serwer HTTPS działa poprawnie');
 });
@@ -27,6 +46,8 @@ let rooms = {};
 
 // Obsługa połączeń Socket.IO
 io.on('connection', (socket) => {
+    console.log('Nowe połączenie:', socket.id);
+
     // Tworzenie pokoju
     socket.on('create-room', ({ playerName }) => {
         const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
@@ -84,3 +105,4 @@ io.on('connection', (socket) => {
 server.listen(PORT, () => {
     console.log(`Serwer działa na HTTPS na porcie ${PORT}`);
 });
+
