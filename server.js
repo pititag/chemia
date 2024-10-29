@@ -5,38 +5,29 @@ const { Server } = require('socket.io');
 
 const app = express();
 
+// Opcje HTTPS, ustawione na ścieżki do kluczy i certyfikatów
 const httpsOptions = {
   key: fs.readFileSync('/home/ec2-user/certs/privkey.pem'),
-  cert: fs.readFileSync('/home/ec2-user/certs/cert.pem') 
+  cert: fs.readFileSync('/home/ec2-user/certs/cert.pem')
 };
 
+// Tworzenie serwera HTTPS z Express i ustawienie go do obsługi przez Socket.IO
 const server = https.createServer(httpsOptions, app);
 const io = new Server(server);
 
 const PORT = 3000;
 
-app.get('/', (req, res) => {
-    res.send('Serwer HTTPS działa poprawnie');
-});
-
-io.on('connection', (socket) => {
-    // Logika dla `socket.io`
-});
-
-server.listen(PORT, () => {
-    console.log(`Serwer działa na HTTPS na porcie ${PORT}`);
-});
-
 // Endpoint do sprawdzenia działania serwera
 app.get('/', (req, res) => {
-    res.send('Serwer działa poprawnie');
+    res.send('Serwer HTTPS działa poprawnie');
 });
 
 // Przechowywanie pokojów oraz graczy
 let rooms = {};
 
-// Dołączenie do pokoju
+// Obsługa połączeń Socket.IO
 io.on('connection', (socket) => {
+    // Tworzenie pokoju
     socket.on('create-room', ({ playerName }) => {
         const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
         rooms[roomCode] = { players: [{ id: socket.id, name: playerName, isHost: true }], host: socket.id, gameStarted: false };
@@ -46,6 +37,7 @@ io.on('connection', (socket) => {
         io.to(roomCode).emit('update-players', rooms[roomCode].players);
     });
 
+    // Dołączanie do pokoju
     socket.on('join-room', ({ playerName, roomCode }) => {
         const room = rooms[roomCode];
         if (room && room.players.length < 5) {
@@ -88,8 +80,7 @@ io.on('connection', (socket) => {
     });
 });
 
-// Uruchomienie serwera
+// Uruchomienie serwera HTTPS
 server.listen(PORT, () => {
-    console.log(`Serwer działa na porcie ${PORT}`);
+    console.log(`Serwer działa na HTTPS na porcie ${PORT}`);
 });
-
