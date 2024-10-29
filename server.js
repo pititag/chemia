@@ -1,12 +1,31 @@
+const https = require('https');
+const fs = require('fs');
 const express = require('express');
-const http = require('http');
 const { Server } = require('socket.io');
 
 const app = express();
-const server = http.createServer(app);
+
+const httpsOptions = {
+  key: fs.readFileSync('/home/ec2-user/certs/privkey.pem'),
+  cert: fs.readFileSync('/home/ec2-user/certs/cert.pem') 
+};
+
+const server = https.createServer(httpsOptions, app);
 const io = new Server(server);
 
 const PORT = 3000;
+
+app.get('/', (req, res) => {
+    res.send('Serwer HTTPS działa poprawnie');
+});
+
+io.on('connection', (socket) => {
+    // Logika dla `socket.io`
+});
+
+server.listen(PORT, () => {
+    console.log(`Serwer działa na HTTPS na porcie ${PORT}`);
+});
 
 // Endpoint do sprawdzenia działania serwera
 app.get('/', (req, res) => {
