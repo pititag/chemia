@@ -8,57 +8,69 @@ const io = new Server(server);
 
 const PORT = 3000;
 
+// Endpoint do sprawdzenia działania serwera
+app.get('/', (req, res) => {
+    res.send('Serwer działa poprawnie');
+});
+
 // Przechowywanie pokojów oraz graczy
 let rooms = {};
 
-// Endpoint do stworzenia pokoju
-app.get('/create-room', (req, res) => {
-  const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
-  rooms[roomCode] = { players: [], host: null, gameStarted: false };
-  res.json({ roomCode });
-});
-
 // Dołączenie do pokoju
 io.on('connection', (socket) => {
-  socket.on('join-room', ({ playerName, roomCode }) => {
-    const room = rooms[roomCode];
-    if (room && room.players.length < 5) {
-      socket.join(roomCode);
-      room.players.push({ id: socket.id, name: playerName });
-      if (!room.host) room.host = socket.id; // Ustawienie hosta, jeśli nie istnieje
+    socket.on('create-room', ({ playerName }) => {
+        const roomCode = Math.floor(1000 + Math.random() * 9000).toString();
+        rooms[roomCode] = { players: [{ id: socket.id, name: playerName, isHost: true }], host: socket.id, gameStarted: false };
+        
+        socket.join(roomCode);
+        socket.emit('room-created', { roomCode, playerName });
+        io.to(roomCode).emit('update-players', rooms[roomCode].players);
+    });
 
-      io.to(roomCode).emit('update-players', room.players);
-      socket.emit('joined-room', { roomCode, isHost: room.host === socket.id });
-    } else {
-      socket.emit('error', 'Nieprawidłowy kod pokoju lub pokój pełny');
-    }
-  });
+    socket.on('join-room', ({ playerName, roomCode }) => {
+        const room = rooms[roomCode];
+        if (room && room.players.length < 5) {
+            socket.join(roomCode);
+            room.players.push({ id: socket.id, name: playerName, isHost: false });
+            io.to(roomCode).emit('update-players', room.players);
+            socket.emit('joined-room', { roomCode, players: room.players });
+        } else {
+            socket.emit('error', 'Nieprawidłowy kod pokoju lub pokój pełny');
+        }
+    });
 
-  // Rozpoczęcie gry
-  socket.on('start-game', (roomCode) => {
-    const room = rooms[roomCode];
-    if (room && room.host === socket.id && room.players.length > 1) {
-      room.gameStarted = true;
-      const order = room.players.map(player => player.name).sort(() => Math.random() - 0.5);
-      io.to(roomCode).emit('game-started', { order });
-    }
-  });
+    // Rozpoczęcie gry
+    socket.on('start-game', (roomCode) => {
+        const room = rooms[roomCode];
+        if (room && room.host === socket.id && room.players.length > 1) {
+            room.gameStarted = true;
+            const order = room.players.map(player => player.name).sort(() => Math.random() - 0.5);
+            io.to(roomCode).emit('game-started', { order });
+        }
+    });
 
-  // Wybór akcji przez gracza
-  socket.on('choose-action', ({ roomCode, action }) => {
-    const question = ["Podaj symbol tlenu", "Wymień kwas chlorowodorowy"][Math.floor(Math.random() * 2)]; // Przykładowe pytanie
-    io.to(roomCode).emit('action-chosen', { playerId: socket.id, action, question });
-  });
+    // Wybór akcji przez gracza
+    socket.on('choose-action', ({ roomCode, action }) => {
+        const question = ["Podaj symbol tlenu", "Wymień kwas chlorowodorowy"][Math.floor(Math.random() * 2)];
+        io.to(roomCode).emit('action-chosen', { playerId: socket.id, action, question });
+    });
 
-  // Rozłączenie
-  socket.on('disconnect', () => {
-    for (const roomCode in rooms) {
-      const room = rooms[roomCode];
-      room.players = room.players.filter(player => player.id !== socket.id);
-      if (room.players.length === 0) delete rooms[roomCode]; // Usunięcie pustego pokoju
-      else io.to(roomCode).emit('update-players', room.players);
-    }
-  });
+    // Rozłączenie gracza
+    socket.on('disconnect', () => {
+        for (const roomCode in rooms) {
+            const room = rooms[roomCode];
+            room.players = room.players.filter(player => player.id !== socket.id);
+            if (room.players.length === 0) {
+                delete rooms[roomCode];
+            } else {
+                io.to(roomCode).emit('update-players', room.players);
+            }
+        }
+    });
 });
 
-server.listen(PORT, () => console.log(`Serwer działa na porcie ${PORT}`));
+// Uruchomienie serwera
+server.listen(PORT, () => {
+    console.log(`Serwer działa na porcie ${PORT}`);
+});
+
